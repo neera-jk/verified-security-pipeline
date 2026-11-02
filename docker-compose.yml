@@ -33,7 +33,7 @@ services:
     command: ["sh", "-c", "${SAST_CMD}"]
     network_mode: none
     volumes:
-      - ./tools/pentest:/scan-target:ro
+      - ./tools/pentest/test-target.js:/scan-target/test-target.js:ro
       - ./reports:/reports
     mem_limit: 256m
     restart: "no"
