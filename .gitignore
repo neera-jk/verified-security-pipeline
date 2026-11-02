@@ -1,0 +1,12 @@
+node_modules/
+reports/
+scan-input/
+sast-report.json
+sast-summary.md
+changed.txt
+to-scan.txt
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.backup
+infra/terraform.tfvars
+.DS_Store

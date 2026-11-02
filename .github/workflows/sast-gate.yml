@@ -1,0 +1,80 @@
+name: SAST gate
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+    SAST_CMD: node tools/sast/cli.js scan-input > sast-report.json
+
+jobs:
+  sast:
+    name: sast
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the pull request
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install scanner dependencies
+        run: npm install --prefix tools/sast
+
+      - name: Collect the files changed in this pull request
+        run: |
+          mkdir -p scan-input
+          git diff --name-only --diff-filter=AM "origin/${{ github.base_ref }}...HEAD" > changed.txt
+          echo "Changed files"
+          cat changed.txt
+          grep -v '^tools/sast/' changed.txt > to-scan.txt || true
+          while read -r f; do
+            if [ -f "$f" ]; then
+              mkdir -p "scan-input/$(dirname "$f")"
+              cp "$f" "scan-input/$f"
+            fi
+          done < to-scan.txt
+
+      - name: Run SAST on the changed files
+        run: |
+          if [ -z "$(ls -A scan-input)" ]; then
+            echo '{"findings": []}' > sast-report.json
+          else
+            eval "$SAST_CMD" || echo "Scanner exited with a non zero code, the gate step decides pass or fail"
+          fi
+
+      - name: Decide pass or fail
+        run: node scripts/sast-gate.js sast-report.json sast-summary.md
+
+      - name: Comment on the pull request
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.existsSync('sast-summary.md')
+              ? fs.readFileSync('sast-summary.md', 'utf8')
+              : 'The SAST gate did not produce a summary. Check the workflow log.';
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });
+
+      - name: Save the raw report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sast-report
+          path: sast-report.json
+          if-no-files-found: ignore
