@@ -1,0 +1,43 @@
+name: team13
+
+services:
+  test-target:
+    build: ./tools/pentest
+    image: team13-pentest:local
+    command: ["sh", "-c", "${TARGET_CMD}"]
+    networks: [scan-net]
+    mem_limit: 256m
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('net').connect(${TARGET_PORT}, '127.0.0.1').on('connect', () => process.exit(0)).on('error', () => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  pentest:
+    build: ./tools/pentest
+    image: team13-pentest:local
+    command: ["sh", "-c", "${PENTEST_CMD}"]
+    depends_on:
+      test-target:
+        condition: service_healthy
+    networks: [scan-net]
+    volumes:
+      - ./reports:/reports
+    mem_limit: 512m
+    restart: "no"
+
+  sast:
+    build: ./tools/sast
+    image: team13-sast:local
+    command: ["sh", "-c", "${SAST_CMD}"]
+    network_mode: none
+    volumes:
+      - ./tools/pentest/test-target.js:/scan-target/test-target.js:ro
+      - ./reports:/reports
+    mem_limit: 256m
+    restart: "no"
+
+networks:
+  scan-net:
+    internal: true
