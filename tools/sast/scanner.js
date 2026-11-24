@@ -90,7 +90,8 @@ const vulnerabilityRules = [
       { regex: /query\s*\(\s*['"`]UPDATE.*\+/gi, desc: 'String concatenation in UPDATE query' },
       { regex: /query\s*\(\s*['"`]DELETE.*\+/gi, desc: 'String concatenation in DELETE query' },
       { regex: /execute\s*\(\s*['"`].*\$\{/gi, desc: 'Template literal in SQL execute' },
-      { regex: /query\s*\(\s*`[^`]*\$\{/gi, desc: 'Template literal in SQL query' }
+      { regex: /query\s*\(\s*`[^`]*\$\{/gi, desc: 'Template literal in SQL query' },
+      { regex: /`[^`]*\b(?:SELECT|INSERT|UPDATE|DELETE)\b[^`]*\$\{/gi, desc: 'SQL statement built with a template literal' }
     ],
     message: 'Potential SQL injection vulnerability. Use parameterized queries instead.'
   },
