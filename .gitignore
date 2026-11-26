@@ -11,3 +11,4 @@ infra/*.tfstate.backup
 infra/terraform.tfvars
 .DS_Store
 infra/*.tfstate.*
+infra/correlate.zip

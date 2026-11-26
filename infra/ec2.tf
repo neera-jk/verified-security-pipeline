@@ -1,15 +1,5 @@
-data "aws_ami" "al2023" {
-  most_recent = true
-  owners      = ["amazon"]
-
-  filter {
-    name   = "name"
-    values = ["al2023-ami-2023*-x86_64"]
-  }
-}
-
 resource "aws_instance" "main" {
-  ami                         = data.aws_ami.al2023.id
+  ami                         = "ami-062caee4b7b602eb0" # Amazon Linux 2023, pinned 2026-11-23
   instance_type               = "t3.small"
   subnet_id                   = aws_subnet.public_a.id
   vpc_security_group_ids      = [aws_security_group.main.id]
