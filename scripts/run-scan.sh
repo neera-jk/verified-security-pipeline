@@ -4,6 +4,9 @@
 
 set -u
 
+# Set to the commit SHA once both reports are uploaded, so the dashboard waits for its verified report
+DASHBOARD_SHA=""
+
 APP_DIR="/opt/app"
 BUCKET="team13-vsp-reports-33c3b3e1"
 REGION="us-east-1"
@@ -29,6 +32,9 @@ skip() {
   log "SKIPPED: $1"
   exit 0
 }
+
+# Refresh the public dashboard however this run ends (finished, skipped or failed)
+trap 'bash /opt/app/scripts/dashboard.sh "$DASHBOARD_SHA" || log "dashboard update failed"' EXIT
 
 log "Starting scan"
 
@@ -74,6 +80,8 @@ fi
 
 aws s3 cp reports/sast.json "s3://${BUCKET}/sast/${SCAN_ID}.json" --region "$REGION" || fail "SAST upload failed"
 aws s3 cp reports/pentest.json "s3://${BUCKET}/pentest/${SCAN_ID}.json" --region "$REGION" || fail "pentest upload failed"
+
+DASHBOARD_SHA="$SCAN_ID"
 
 aws cloudwatch put-metric-data \
   --namespace "$METRIC_NAMESPACE" \
