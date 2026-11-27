@@ -1,9 +1,12 @@
 import { S3Client, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
+import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
 
 const s3 = new S3Client({});
 const ddb = new DynamoDBClient({});
+const sns = new SNSClient({});
 const TABLE = process.env.TABLE_NAME;
+const ALERT_TOPIC_ARN = process.env.ALERT_TOPIC_ARN;
 
 const CATEGORIES = [
   ["NoSQL injection", /nosql|mongo/i],
@@ -46,6 +49,31 @@ function categories(report) {
   return found;
 }
 
+// Sends one alert email through SNS listing the Confirmed issues for a commit.
+async function publishConfirmedAlert(sha, confirmed, reportKey) {
+  if (!ALERT_TOPIC_ARN) {
+    console.log("ALERT_TOPIC_ARN is not set, skipping the alert email");
+    return;
+  }
+
+  const shortSha = sha.slice(0, 7);
+  const subject = `Team13: ${confirmed.length} Confirmed issue(s) in commit ${shortSha}`;
+
+  let body = `New Confirmed issues for commit ${sha}\n\n`;
+  for (const issue of confirmed) {
+    body += `- ${issue}\n`;
+  }
+  body += `\nConfirmed means SAST found it in the code and the pentest exploited it on the running app.\n`;
+  body += `Full report: ${reportKey}\n`;
+
+  await sns.send(new PublishCommand({
+    TopicArn: ALERT_TOPIC_ARN,
+    Subject: subject,
+    Message: body,
+  }));
+  console.log(`Sent alert for ${sha}`);
+}
+
 export const handler = async (event) => {
   for (const record of event.Records) {
     const bucket = record.s3.bucket.name;
@@ -65,10 +93,11 @@ export const handler = async (event) => {
     const suspected = [...new Set([...sastCats, ...pentestCats])].filter((c) => !confirmed.includes(c));
     console.log(`${sha}: ${confirmed.length} Confirmed, ${suspected.length} Suspected`, { confirmed, suspected });
 
+    const reportKey = `verified/${sha}.json`;
     const verified = { sha, createdAt: new Date().toISOString(), confirmed, suspected };
     await s3.send(new PutObjectCommand({
       Bucket: bucket,
-      Key: `verified/${sha}.json`,
+      Key: reportKey,
       Body: JSON.stringify(verified, null, 2),
       ContentType: "application/json",
     }));
@@ -81,11 +110,17 @@ export const handler = async (event) => {
           createdAt: { S: verified.createdAt },
           confirmedCount: { N: String(confirmed.length) },
           suspectedCount: { N: String(suspected.length) },
-          reportKey: { S: `verified/${sha}.json` },
+          reportKey: { S: reportKey },
         },
         ConditionExpression: "attribute_not_exists(sha)",
       }));
       console.log(`Indexed ${sha}`);
+
+      if (confirmed.length > 0) {
+        await publishConfirmedAlert(sha, confirmed, reportKey);
+      } else {
+        console.log(`No Confirmed issues for ${sha}, no alert sent`);
+      }
     } catch (err) {
       if (err.name === "ConditionalCheckFailedException") {
         console.log(`${sha} is already indexed, skipping`);
