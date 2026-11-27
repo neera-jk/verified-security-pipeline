@@ -14,6 +14,18 @@ resource "aws_sns_topic_subscription" "alerts_email" {
   endpoint  = "shivaprasad.t@northeastern.edu"
 }
 
+resource "aws_sns_topic_subscription" "alerts_email_neeraj" {
+  topic_arn = aws_sns_topic.alerts.arn
+  protocol  = "email"
+  endpoint  = var.neeraj_email
+}
+
+resource "aws_sns_topic_subscription" "alerts_email_soumya" {
+  topic_arn = aws_sns_topic.alerts.arn
+  protocol  = "email"
+  endpoint  = var.soumya_email
+}
+
 # ---------------------------------------------------------------
 # Alarms
 # ---------------------------------------------------------------

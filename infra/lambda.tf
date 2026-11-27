@@ -1,3 +1,5 @@
+data "aws_caller_identity" "current" {}
+
 data "archive_file" "correlate" {
   type        = "zip"
   source_file = "${path.module}/../lambda/correlate/index.mjs"
@@ -10,13 +12,14 @@ resource "aws_lambda_function" "correlate" {
   source_code_hash = data.archive_file.correlate.output_base64sha256
   handler          = "index.handler"
   runtime          = "nodejs22.x"
-  role             = "arn:aws:iam::090305849528:role/LabRole"
+  role             = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/LabRole"
   timeout          = 30
   memory_size      = 256
 
   environment {
     variables = {
       TABLE_NAME = aws_dynamodb_table.scan_index.name
+      ALERT_TOPIC_ARN = aws_sns_topic.alerts.arn
     }
   }
 
